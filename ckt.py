@@ -8,9 +8,22 @@ def hop_input():
     no=int(math.sqrt(sum(1 for line in open('ham_r.txt','r'))/nr))
 
     tmp=[f.strip(' ()\n').split(',') for f in open('ham_r.txt','r')]
-    ham_r=[[[complex(float(tmp[i*no*no+j*no+k][0]),
-                     float(tmp[i*no*no+j*no+k][1])) for k in range(no)]
-            for j in range(no)] for i in range(nr)]
+    tmp1=[complex(float(tp[0]),float(tp[1])) for tp in tmp]
+    ham_r=[[[tmp1[i*no*no+j*no+k] for k in range(no)] for j in range(no)] for i in range(nr)]
+    return(rvec,ndegen,ham_r,no,nr)
+
+def input_out(fname):
+    import math
+    tmp=[f.split() for f in open(fname,'r')]
+    tmp1=[[float(tp) for tp in tpp] for tpp in tmp]
+    tmp=[complex(tp[3],tp[4]) for tp in tmp1]
+    r0=tmp1[0][:3]
+    con=sum(1 if rr[:3]==r0 else 0  for rr in tmp1)
+    no=int(math.sqrt(con))
+    nr=len(tmp1)/con
+    rvec=[tp[:3] for tp in tmp1[:nr]]
+    ham_r=[[[tmp[i+j*nr+k*nr*no] for k in range(no)] for j in range(no)] for i in range(nr)]
+    ndegen=[1]*nr
     return(rvec,ndegen,ham_r,no,nr)
 
 def check_ham(ham_r,rvec,f):
@@ -32,19 +45,17 @@ def check_ham(ham_r,rvec,f):
 def check_hermite(ham_r,rvec):
     f=lambda a,b,x,y:abs(a-b[y][x].conjugate())/abs(a)
     count=check_ham(ham_r,rvec,f)
-    if(count==0):
-        print('Hermite')
-    else:
-        print('not Hermite')
+    print(('' if(count==0) else 'not ')+'Hermite')
 
 def check_SRS(ham_r,rvec):
     f=lambda a,b,x,y:abs(a-b[x][y])
     count=check_ham(ham_r,rvec,f)
-    if(count==0):
-        print('SRS')
-    else:
-        print(count)
-        print('SRS breaking')
+    print('SRS'+('' if(count==0)else ' breaking\n%d'%count))
+
+def check_periodic(ham_r,rvec):
+    f=lambda a,b,x,y:abs(a-b[y][x])
+    count=check_ham(ham_r,rvec,f)
+    print('Periodic symmetry'+('' if(count==0)else ' breaking\n%d'%count))
 
 def write_ham_r(ham_r,filename):
     f=open(filename,'w')
@@ -171,15 +182,17 @@ def restruct_ham_r(ham_r,ndegen):
     return(ham_r)
 
 def main():
-    (rvec,ndegen,ham_r,no,nr)=hop_input()
+    #(rvec,ndegen,ham_r,no,nr)=hop_input()
+    (rvec,ndegen,ham_r,no,nr)=input_out('LaOBiS2_xy.input')
     #ham_r=restruct_ham_r(ham_r,ndegen)
     (rvec2,ham_r2)=IBSC_unfold(rvec,ham_r)
-    output_unfold(ham_r2,rvec2)
+    #output_unfold(ham_r2,rvec2)
     #write_ham_r(ham_r,'ham_r2.txt')
     #mkham(ham_r,no)
     #mk_non_so_spin_model(ham_r,no)
     check_hermite(ham_r,rvec)
     check_SRS(ham_r,rvec)
+    check_periodic(ham_r,rvec)
     print('nr = %d no = %d'%(nr,no))
     onsite_energy=check_onsite_energy(rvec,ham_r,no)
 
