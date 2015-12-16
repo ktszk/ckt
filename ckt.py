@@ -1,18 +1,20 @@
 from __future__ import print_function
-def hop_input():
+sw=2
+name='FeS'
+
+def import_hop():
     import math
     tmp=[f.split() for f in open('irvec.txt','r')]
     rvec=[[float(tp[0]),float(tp[1]),float(tp[2])] for tp in tmp]
     nr=len(rvec)
     ndegen=([float(f) for f in open('ndegen.txt','r')] if True else [1]*nr)
     no=int(math.sqrt(sum(1 for line in open('ham_r.txt','r'))/nr))
-
     tmp=[f.strip(' ()\n').split(',') for f in open('ham_r.txt','r')]
     tmp1=[complex(float(tp[0]),float(tp[1])) for tp in tmp]
     ham_r=[[[tmp1[i*no*no+j*no+k] for k in range(no)] for j in range(no)] for i in range(nr)]
     return(rvec,ndegen,ham_r,no,nr)
 
-def input_out(fname):
+def import_out(fname):
     import math
     tmp=[f.split() for f in open(fname,'r')]
     tmp1=[[float(tp) for tp in tpp] for tpp in tmp]
@@ -22,8 +24,26 @@ def input_out(fname):
     no=int(math.sqrt(con))
     nr=len(tmp1)/con
     rvec=[tp[:3] for tp in tmp1[:nr]]
-    ham_r=[[[tmp[i+j*nr+k*nr*no] for k in range(no)] for j in range(no)] for i in range(nr)]
+    ham_r=[[[tmp[k+j*nr+i*nr*no] for k in range(no)] for j in range(no)] for i in range(nr)]
     ndegen=[1]*nr
+    return(rvec,ndegen,ham_r,no,nr)
+
+def import_hr(name):
+    tmp=[f.split() for f in open('%s_hr.dat'%name)]
+    no=int(tmp[1][0])
+    nr=int(tmp[2][0])
+    c1=0; c2=3
+    while not c1==nr:
+        c1=c1+len(tmp[c2])
+        c2=c2+1
+    tmp1=[[int(t) for t in tp] for tp in tmp[3:c2]]
+    ndegen=[]
+    for tp in tmp1:
+        ndegen=ndegen+tp
+    tmp1=[[float(t) for t in tp] for tp in tmp[c2:]]
+    tmp=[complex(tp[5],tp[6]) for tp in tmp1]
+    rvec=[tmp1[no*no*i][:3] for i in range(nr)]
+    ham_r=[[[tmp[k+j*no+i*no*no] for k in range(no)] for j in range(no)] for i in range(nr)]
     return(rvec,ndegen,ham_r,no,nr)
 
 def check_ham(ham_r,rvec,f):
@@ -43,7 +63,7 @@ def check_ham(ham_r,rvec,f):
     return(count)
 
 def check_hermite(ham_r,rvec):
-    f=lambda a,b,x,y:abs(a-b[y][x].conjugate())/abs(a)
+    f=lambda a,b,x,y:abs(a-b[y][x].conjugate())/(1 if abs(a)==0 else abs(a))
     count=check_ham(ham_r,rvec,f)
     print(('' if(count==0) else 'not ')+'Hermite')
 
@@ -182,10 +202,10 @@ def restruct_ham_r(ham_r,ndegen):
     return(ham_r)
 
 def main():
-    #(rvec,ndegen,ham_r,no,nr)=hop_input()
-    (rvec,ndegen,ham_r,no,nr)=input_out('LaOBiS2_xy.input')
-    #ham_r=restruct_ham_r(ham_r,ndegen)
-    (rvec2,ham_r2)=IBSC_unfold(rvec,ham_r)
+    (rvec,ndegen,ham_r,no,nr)=(import_hop() if sw==0 else import_out(name) 
+                               if sw==1 else import_hr(name))
+    ham_r=restruct_ham_r(ham_r,ndegen)
+    #(rvec2,ham_r2)=IBSC_unfold(rvec,ham_r)
     #output_unfold(ham_r2,rvec2)
     #write_ham_r(ham_r,'ham_r2.txt')
     #mkham(ham_r,no)
