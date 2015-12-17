@@ -1,7 +1,8 @@
 from __future__ import print_function
-sw=2
+sw=0 #0: ham_r, 1: .input, 2:_hr.dat
 name='FeS'
-
+flag=True #if wein flag: True else (QE or VASP) flag:False
+brav='P'
 def import_hop():
     import math
     tmp=[f.split() for f in open('irvec.txt','r')]
@@ -11,7 +12,7 @@ def import_hop():
     no=int(math.sqrt(sum(1 for line in open('ham_r.txt','r'))/nr))
     tmp=[f.strip(' ()\n').split(',') for f in open('ham_r.txt','r')]
     tmp1=[complex(float(tp[0]),float(tp[1])) for tp in tmp]
-    ham_r=[[[tmp1[i*no*no+j*no+k] for k in range(no)] for j in range(no)] for i in range(nr)]
+    ham_r=[[[tmp1[j+k*no+i*no*no] for k in range(no)] for j in range(no)] for i in range(nr)]
     return(rvec,ndegen,ham_r,no,nr)
 
 def import_out(fname):
@@ -63,7 +64,7 @@ def check_ham(ham_r,rvec,f):
     return(count)
 
 def check_hermite(ham_r,rvec):
-    f=lambda a,b,x,y:abs(a-b[y][x].conjugate())/(1 if abs(a)==0 else abs(a))
+    f=lambda a,b,x,y:abs(a-b[y][x].conjugate())
     count=check_ham(ham_r,rvec,f)
     print(('' if(count==0) else 'not ')+'Hermite')
 
@@ -77,7 +78,7 @@ def check_periodic(ham_r,rvec):
     count=check_ham(ham_r,rvec,f)
     print('Periodic symmetry'+('' if(count==0)else ' breaking\n%d'%count))
 
-def write_ham_r(ham_r,filename):
+def output_ham_r(ham_r,filename):
     f=open(filename,'w')
     for hmm in ham_r:
         for hm in hmm:
@@ -130,7 +131,7 @@ def check_t2_indirect(rvec,ham_r,no):
     print('check t2 indirect')
     t2=check_inter_energy(rvec,ham_r,10,6,cvec)
 
-def mkham(ham_r,no):
+def output_pick_orb_ham(ham_r,no):
     f=open('ham_r3.txt','w')
     orb_list=[1,2,5]
     for hm in ham_r:
@@ -177,18 +178,28 @@ def print_gvec(hm,f,no):
         print('')
     print('')
 
-def IBSC_unfold(rvec,ham_r):
-    inv_list=[3]
-    r2=[[r[0]+r[1],r[1]-r[0],r[2]] for r in rvec]
-    r3=[[r[0]+r[1],r[1]-r[0]+1,r[2]] for r in rvec]
+def IBSC_unfold(rvec,ham_r,flag,brav):
+    if brav=='P':
+        inv_list=([3] if flag else [1,2])
+        r2=[[r[0]+r[1],r[1]-r[0],r[2]] for r in rvec]
+        r3=[[r[0]+r[1],r[1]-r[0]+1,r[2]] for r in rvec]
+    elif brav=='I':
+        inv_list=([0,2,4] if flag else [0,3,4])
+        if flag: #Wien or Vasp
+            r0=[[r[1]+r[2]-r[0],r[2]+r[0]-r[1],r[0]+r[1]-r[2]] for r in rvec]
+            r3=[[(r[0]-r[1])/2-1,(r[0]+r[1])/2,r[2]] for r in r0]
+        else: #QE
+            r0=[[r[0]+r[1]-r[2],r[1]-r[0]-r[2],r[0]+r[1]+r[2]] for r in rvec]
+            r3=[[(r[0]-r[1])/2,(r[0]+r[1])/2,r[2]-1] for r in r0]
+        r2=[[(r[0]-r[1])/2,(r[0]+r[1])/2,r[2]] for r in r0]
     rvec2=r2+r3
     ham1=[[h[:5] for h in hm[:5]] for hm in ham_r]
     ham2=[[[ h if (i in inv_list) else -h for i,h in enumerate(hm[5:])] for hm in ham[:5]] for ham in ham_r]
     ham_r2=ham1+ham2
     return(rvec2,ham_r2)
 
-def output_unfold(ham_r,rvec):
-    write_ham_r(ham_r,'ham_r2.txt')
+def output_unfold_ham(ham_r,rvec):
+    output_ham_r(ham_r,'ham_r2.txt')
     f=open('irvec2.txt','w')
     for r in rvec:
         f.write('%12i %11i %11i\n'%tuple(r))
@@ -204,11 +215,11 @@ def restruct_ham_r(ham_r,ndegen):
 def main():
     (rvec,ndegen,ham_r,no,nr)=(import_hop() if sw==0 else import_out(name) 
                                if sw==1 else import_hr(name))
-    ham_r=restruct_ham_r(ham_r,ndegen)
-    #(rvec2,ham_r2)=IBSC_unfold(rvec,ham_r)
-    #output_unfold(ham_r2,rvec2)
-    #write_ham_r(ham_r,'ham_r2.txt')
-    #mkham(ham_r,no)
+    ham_r=restruct_ham_r(ham_r,ndegen) #ham_r/ndegen
+    (rvec2,ham_r2)=IBSC_unfold(rvec,ham_r,flag,brav)
+    output_unfold_ham(ham_r2,rvec2)
+    output_ham_r(ham_r,'ham.txt') #output ham_r/ndegen
+    #output_pick_orb_ham(ham_r,no)
     #mk_non_so_spin_model(ham_r,no)
     check_hermite(ham_r,rvec)
     check_SRS(ham_r,rvec)
@@ -217,7 +228,7 @@ def main():
     onsite_energy=check_onsite_energy(rvec,ham_r,no)
 
     #hm=find_ham_r(rvec,ham_r,[0.,0.,0.])
-    #b0=lambda x:x < no/2
+    #b0=lambda x:x < no #/2
     #print_ham_r(hm,b0)
     #b0=lambda x:x >= no
     #print_ham_r(hm,b0)
