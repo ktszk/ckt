@@ -25,7 +25,7 @@ def import_out(fname):
     no=int(math.sqrt(con))
     nr=len(tmp1)/con
     rvec=[tp[:3] for tp in tmp1[:nr]]
-    ham_r=[[[tmp[k+j*nr+i*nr*no] for k in range(no)] for j in range(no)] for i in range(nr)]
+    ham_r=[[[tmp[i+j*nr+k*nr*no] for k in range(no)] for j in range(no)] for i in range(nr)]
     ndegen=[1]*nr
     return(rvec,ndegen,ham_r,no,nr)
 
