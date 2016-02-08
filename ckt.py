@@ -1,8 +1,14 @@
-from __future__ import print_function
+#!/usr/bin/env python
+#-*- coding:utf-8 -*-
+from __future__ import print_function, division
 sw=0 #0: ham_r, 1: .input, 2:_hr.dat
 name='FeS'
 flag=True #if wein flag: True else (QE or VASP) flag:False
-brav='P'
+brav='P' #set bravais lattice Initial
+so=False #switch g-vector (off diagonal part of so hamiltonian)
+unfold=False #switch unfold & output unfold hamiltonian
+ham_out=False #switch output hamiltonian div ndegen
+non_so_out=False #switch output non so spin up/down hamiltonian
 def import_hop():
     import math
     tmp=[f.split() for f in open('irvec.txt','r')]
@@ -23,7 +29,7 @@ def import_out(fname):
     r0=tmp1[0][:3]
     con=sum(1 if rr[:3]==r0 else 0  for rr in tmp1)
     no=int(math.sqrt(con))
-    nr=len(tmp1)/con
+    nr=len(tmp1)//con
     rvec=[tp[:3] for tp in tmp1[:nr]]
     ham_r=[[[tmp[i+j*nr+k*nr*no] for k in range(no)] for j in range(no)] for i in range(nr)]
     ndegen=[1]*nr
@@ -143,7 +149,7 @@ def output_pick_orb_ham(ham_r,no):
 
 def mk_non_so_spin_model(ham_r,no):
     f=open('ham_r3.txt','w')
-    fc=lambda x,y:x%y+2*int(x/(y*2))
+    fc=lambda x,y:x%y+2*int(x//(2*y))
     for hm in ham_r:
         for j in range(2*no):
             for k in range(2*no):
@@ -216,62 +222,44 @@ def main():
     (rvec,ndegen,ham_r,no,nr)=(import_hop() if sw==0 else import_out(name) 
                                if sw==1 else import_hr(name))
     ham_r=restruct_ham_r(ham_r,ndegen) #ham_r/ndegen
-    (rvec2,ham_r2)=IBSC_unfold(rvec,ham_r,flag,brav)
-    output_unfold_ham(ham_r2,rvec2)
-    output_ham_r(ham_r,'ham.txt') #output ham_r/ndegen
+    if unfold:
+        (rvec2,ham_r2)=IBSC_unfold(rvec,ham_r,flag,brav)
+        output_unfold_ham(ham_r2,rvec2)
+    if ham_out:
+        output_ham_r(ham_r,'ham.txt') #output ham_r/ndegen
     #output_pick_orb_ham(ham_r,no)
-    #mk_non_so_spin_model(ham_r,no)
+    if non_so_out:
+        mk_non_so_spin_model(ham_r,no)
     check_hermite(ham_r,rvec)
     check_SRS(ham_r,rvec)
     check_periodic(ham_r,rvec)
     print('nr = %d no = %d'%(nr,no))
     onsite_energy=check_onsite_energy(rvec,ham_r,no)
 
-    #hm=find_ham_r(rvec,ham_r,[0.,0.,0.])
-    #b0=lambda x:x < no #/2
-    #print_ham_r(hm,b0)
-    #b0=lambda x:x >= no
-    #print_ham_r(hm,b0)
+    """usually chech_r is [-1.,1.,0.],[-1.,0.,0.],[1.,1.,0.],[0.,-1.,-1.],[0.,0.,-1.],[1.,1.,1.]"""
 
-    #hm=find_ham_r(rvec,ham_r,[1.,0.,0.])
-    #hm=find_ham_r(rvec,ham_r,[0.,1.,0.])
-    #hm=find_ham_r(rvec,ham_r,[0.,1.,1.])
-    #b0=lambda x:x < no
-    #print_ham_r(hm,b0)
+    check_r=[[0.,0.,0.],[1.,0.,0.],[1.,1.,2.]]
+    cnst=0
+    for r in check_r:
+        hm=find_ham_r(rvec,ham_r,r)
+        b0=lambda x:x < no #/2
+        print_ham_r(hm,b0)
+        #b0=lambda x:x >= no
+        #print_ham_r(hm,b0)
+        if not cnst==0 and so:
+            b0=lambda a,x,y:(a[x+no/2][y]+a[x][y+no/2])*0.5
+            print_gvec(hm,b0,no/2)
 
-    #b0=lambda a,x,y:(a[x+no/2][y]+a[x][y+no/2])*0.5
-    #print_gvec(hm,b0,no/2)
+            b0=lambda a,x,y:-(a[x+no/2][y]-a[x][y+no/2])*0.5j
+            print_gvec(hm,b0,no/2)
 
-    #b0=lambda a,x,y:-(a[x+no/2][y]-a[x][y+no/2])*0.5j
-    #print_gvec(hm,b0,no/2)
+            b0=lambda a,x,y:(a[x][y]-a[x+no/2][y+no/2])*0.5
+            print_gvec(hm,b0,no/2)
 
-    #b0=lambda a,x,y:(a[x][y]-a[x+no/2][y+no/2])*0.5
-    #print_gvec(hm,b0,no/2)
+            b0=lambda a,x,y:(a[x][y]+a[x+no/2][y+no/2])*0.5
+            print_gvec(hm,b0,no/2)
+        cnst=1
 
-    #b0=lambda a,x,y:(a[x][y]+a[x+no/2][y+no/2])*0.5
-    #print_gvec(hm,b0,no/2)
-
-    #hm=find_ham_r(rvec,ham_r,[1.,1.,2.])
-    #hm=find_ham_r(rvec,ham_r,[-1.,1.,0.])
-    #hm=find_ham_r(rvec,ham_r,[-1.,0.,0.])
-    #hm=find_ham_r(rvec,ham_r,[1.,1.,0.])
-    #hm=find_ham_r(rvec,ham_r,[0.,-1.,-1.])
-    #hm=find_ham_r(rvec,ham_r,[0.,0.,-1.])
-    #hm=find_ham_r(rvec,ham_r,[1.,1.,1.])
-    #b0=lambda x:x < no
-    #print_ham_r(hm,b0)
-
-    #b0=lambda a,x,y:(a[x+no/2][y]+a[x][y+no/2])*0.5
-    #print_gvec(hm,b0,no/2)
-
-    #b0=lambda a,x,y:-(a[x+no/2][y]-a[x][y+no/2])*0.5j
-    #print_gvec(hm,b0,no/2)
-
-    #b0=lambda a,x,y:(a[x][y]-a[x+no/2][y+no/2])*0.5
-    #print_gvec(hm,b0,no/2)
-
-    #b0=lambda a,x,y:(a[x][y]+a[x+no/2][y+no/2])*0.5
-    #print_gvec(hm,b0,no/2)
 
 """
     onsite_energy_Fe=onsite_energy[0:10]
