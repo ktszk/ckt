@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 #-*- coding:utf-8 -*-
 from __future__ import print_function, division
-sw=0 #0: ham_r, 1: .input, 2:_hr.dat
-name='FeS'
-flag=True #if wein flag: True else (QE or VASP) flag:False
+sw=1 #0: ham_r, 1: .input, 2:_hr.dat
+name='000AsP.input'
+flag=False #if wein flag: True else (QE or VASP) flag:False
 brav='P' #set bravais lattice Initial
 so=False #switch g-vector (off diagonal part of so hamiltonian)
 unfold=False #switch unfold & output unfold hamiltonian
 ham_out=False #switch output hamiltonian div ndegen
 non_so_out=False #switch output non so spin up/down hamiltonian
+eps=1.0e-6
 def import_hop():
     import math
     tmp=[f.split() for f in open('irvec.txt','r')]
@@ -53,6 +54,17 @@ def import_hr(name):
     ham_r=[[[tmp[k+j*no+i*no*no] for k in range(no)] for j in range(no)] for i in range(nr)]
     return(rvec,ndegen,ham_r,no,nr)
 
+def import_Hopping():
+    tmp=[f.split() for f in open('Hopping.dat','r')]
+    axis=[[float(tp) for tp in tpp] for tpp in tmp[1:4]]
+    no,nr=int(tmp[4][0]),int(tmp[4][1])
+    ndegen=[1]*nr
+    tmp1=[[float(t) for t in tp] for tp in tmp[7+no:]]
+    rvec=[tmp1[no*no*i][:3] for i in range(nr)]
+    tmp=[complex(tp[8],tp[9]) for tp in tmp1]
+    ham_r=[[[tmp[k+j*no+i*no*no] for k in range(no)] for j in range(no)] for i in range(nr)]
+    return(rvec,ndegen,ham_r,no,nr)
+
 def check_ham(ham_r,rvec,f):
     count=0
     for i,r1 in enumerate(rvec):
@@ -62,7 +74,7 @@ def check_ham(ham_r,rvec,f):
                 for k,hmm in enumerate(ham_r[i]):
                     for l,hm in enumerate(hmm):
                         tmp=f(hm,ham_r[j],k,l)
-                        if(abs(hm)>1.0e-6 and tmp>1.0e-8):
+                        if(abs(hm)>eps and tmp>eps):
                             count=count+1
                             #print(k,l,r)
                             #print(hm,ham_r[j][k][l])
@@ -72,17 +84,27 @@ def check_ham(ham_r,rvec,f):
 def check_hermite(ham_r,rvec):
     f=lambda a,b,x,y:abs(a-b[y][x].conjugate())
     count=check_ham(ham_r,rvec,f)
-    print(('' if(count==0) else 'not ')+'Hermite')
+    print(('' if(count==0) else 'not ')+'Hermite'+('' if(count==0) else '\n%d'%count))
 
 def check_SRS(ham_r,rvec):
     f=lambda a,b,x,y:abs(a-b[x][y])
     count=check_ham(ham_r,rvec,f)
     print('SRS'+('' if(count==0)else ' breaking\n%d'%count))
 
-def check_periodic(ham_r,rvec):
+def check_TRS(ham_r,rvec):
     f=lambda a,b,x,y:abs(a-b[y][x])
     count=check_ham(ham_r,rvec,f)
-    print('Periodic symmetry'+('' if(count==0)else ' breaking\n%d'%count))
+    print('TRS'+('' if(count==0)else ' breaking\n%d'%count))
+
+def check_imag(ham_r,rvec):
+    count=0
+    for i,r in enumerate(rvec):
+        for hmm in ham_r[i]:
+            for hm in hmm:
+                if(abs(hm.imag)>eps):
+                    count=count+1
+    print('hopping matrices are '+('real' if(count==0)else 'complex\n%d'%count))
+    return (True if(count==0) else False)
 
 def output_ham_r(ham_r,filename):
     f=open(filename,'w')
@@ -167,18 +189,27 @@ def find_ham_r(rvec,ham_r,ri):
             break
     return(hm)
 
-def print_ham_r(hm,b0):
+def print_ham_r(hm,b0,flag):
+    print('   ',end='')
+    for i in range(len(hm)):
+        print(('     %2d      '%(i+1) if flag 
+               else '%11s %2d %11s'%('',(i+1),'')) ,end='')
+    print('')
     for i,hmm in enumerate(hm):
+        print('%2d '%(i+1),end='')
         for j,hmmm in enumerate(hmm):
             if(b0(i) and b0(j)):
-                print('(%11.4e,%11.4e) %d %d'%(round(hmmm.real,5),round(hmmm.imag,5),i+1,j+1),end='')
+                if flag:
+                    print(' %11.4e,'%round(hmmm.real,5),end='')
+                else:
+                    print('(%11.4e,%11.4e),'%(round(hmmm.real,5),round(hmmm.imag,5)),end='')
         if(b0(i)):
             print('')
     print('')
 
-def print_gvec(hm,f,no):
-    for i in range(no):
-        for j in range(no):
+def print_gvec(hm,f,no0):
+    for i in range(no0):
+        for j in range(no0):
             hmm=f(hm,i,j)
             print('(%11.4e,%11.4e) %d %d'%(round(hmm.real,5),round(hmm.imag,5),i+1,j+1),end='')
         print('')
@@ -220,7 +251,7 @@ def restruct_ham_r(ham_r,ndegen):
 
 def main():
     (rvec,ndegen,ham_r,no,nr)=(import_hop() if sw==0 else import_out(name) 
-                               if sw==1 else import_hr(name))
+                               if sw==1 else import_hr(name) if sw==2 else import_Hopping())
     ham_r=restruct_ham_r(ham_r,ndegen) #ham_r/ndegen
     if unfold:
         (rvec2,ham_r2)=IBSC_unfold(rvec,ham_r,flag,brav)
@@ -230,35 +261,34 @@ def main():
     #output_pick_orb_ham(ham_r,no)
     if non_so_out:
         mk_non_so_spin_model(ham_r,no)
+    rflag=check_imag(ham_r,rvec)
     check_hermite(ham_r,rvec)
     check_SRS(ham_r,rvec)
-    check_periodic(ham_r,rvec)
+    check_TRS(ham_r,rvec)
     print('nr = %d no = %d'%(nr,no))
     onsite_energy=check_onsite_energy(rvec,ham_r,no)
 
     """usually chech_r is [-1.,1.,0.],[-1.,0.,0.],[1.,1.,0.],[0.,-1.,-1.],[0.,0.,-1.],[1.,1.,1.]"""
 
-    check_r=[[0.,0.,0.],[1.,0.,0.],[1.,1.,2.]]
-    cnst=0
+    check_r=[[0.,0.,0.],[1.,0.,0.],[1.,1.,0.]]
     for r in check_r:
         hm=find_ham_r(rvec,ham_r,r)
         b0=lambda x:x < no #/2
-        print_ham_r(hm,b0)
+        print_ham_r(hm,b0,rflag)
         #b0=lambda x:x >= no
         #print_ham_r(hm,b0)
-        if not cnst==0 and so:
-            b0=lambda a,x,y:(a[x+no/2][y]+a[x][y+no/2])*0.5
-            print_gvec(hm,b0,no/2)
+        if so:
+            b0=lambda a,x,y:(a[x][y]+a[x+int(no*0.5)][y+int(no*0.5)])*0.5
+            print_gvec(hm,b0,int(no*0.5)) #ek
 
-            b0=lambda a,x,y:-(a[x+no/2][y]-a[x][y+no/2])*0.5j
-            print_gvec(hm,b0,no/2)
+            b0=lambda a,x,y:(a[x+int(no*0.5)][y]+a[x][y+int(no*0.5)])*0.5
+            #print_gvec(hm,b0,int(no*0.5)) #gx
 
-            b0=lambda a,x,y:(a[x][y]-a[x+no/2][y+no/2])*0.5
-            print_gvec(hm,b0,no/2)
+            b0=lambda a,x,y:(a[x+int(no*0.5)][y]-a[x][y+int(no*0.5)])*0.5j
+            #print_gvec(hm,b0,int(no*0.5)) #gy
 
-            b0=lambda a,x,y:(a[x][y]+a[x+no/2][y+no/2])*0.5
-            print_gvec(hm,b0,no/2)
-        cnst=1
+            b0=lambda a,x,y:(a[x][y]-a[x+int(no*0.5)][y+int(no*0.5)])*0.5
+            #print_gvec(hm,b0,int(no*0.5)) #gz
 
 
 """
