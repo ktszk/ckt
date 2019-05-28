@@ -4,20 +4,20 @@ from __future__ import print_function, division
 (T,F)=(True,False)
 
 sw=0 #0: ham_r, 1: .input, 2:_hr.dat
-name='000AsP.input'
+name='LaOBiS2'
 brav='P' #set bravais lattice Initial
 so=T #switch g-vector (off diagonal part of so hamiltonian)
 eps=1.0e-6
 
 import numpy as np
-def read_ham(sw):
-    def import_hop():
-        rvec=np.loadtxt('irvec.txt')
+def read_ham(sw,name):
+    def import_hop(fname):
+        rvec=np.loadtxt(fname+'/irvec.txt')
         nr=rvec[:,0].size
-        tmp=np.array([complex(float(tp[0]),float(tp[1])) for tp in [f.strip(' ()\n').split(',') for f in open('ham_r.txt','r')]])
+        tmp=np.array([complex(float(tp[0]),float(tp[1])) for tp in [f.strip(' ()\n').split(',') for f in open(fname+'/ham_r.txt','r')]])
         no=int(np.sqrt(tmp.size/nr))
         ham_r=tmp.reshape(nr,no,no)
-        ndegen=(np.loadtxt('ndegen.txt') if True else np.ones(nr))
+        ndegen=(np.loadtxt(fname+'/ndegen.txt') if True else np.ones(nr))
         return(rvec,ndegen,ham_r,no,nr)
     def import_out(fname):
         data=np.loadtxt(fname)
@@ -51,7 +51,7 @@ def read_ham(sw):
         ham_r=tmp.reshape(nr,no,no)
         return(rvec,ndegen,ham_r,no,nr)
 
-    return(import_hop() if sw==0 else import_out(name) 
+    return(import_hop(name) if sw==0 else import_out(name) 
            if sw==1 else import_hr(name) if sw==2 else import_Hopping())
 
 def check_ham(ham_r,rvec,f,sw=True):
@@ -134,7 +134,7 @@ def print_ham_r(hm,flag):
         print(('     %2d      '%(i+1) if flag 
                else '%11s %2d %11s'%('',(i+1),'')) ,end='')
     print('')
-    for hmm in hm:
+    for i,hmm in enumerate(hm):
         print('%2d '%(i+1),end='')
         for hmmm in hmm:
             if flag:
@@ -163,7 +163,7 @@ def print_gvec(hm,f,no0):
     print('')
 
 def main():
-    (rvec,ndegen,ham_r,no,nr)=read_ham(sw)
+    (rvec,ndegen,ham_r,no,nr)=read_ham(sw,name)
     rflag=check_imag(ham_r,rvec)
     check_hermite(ham_r,rvec)
     check_SRS(ham_r,rvec)
@@ -173,7 +173,9 @@ def main():
 
     """usually chech_r is [-1.,1.,0.],[-1.,0.,0.],[1.,1.,0.],[0.,-1.,-1.],[0.,0.,-1.],[1.,1.,1.]"""
 
-    check_r=[[1.,0.,0.],[-1.,0.,0.]] #,[1.,1.,0.]]
+    #check_r=[[1.,0.,0.],[-1.,0.,0.]]
+    #check_r=[[1.,0.,0.],[0.,1.,0.],[0.,0.,0.]]
+    check_r=[[3.,2.,0.],[3.,1.,0.]]
     for r in check_r:
         hm=find_ham_r(rvec,ham_r,r)
         if so:
