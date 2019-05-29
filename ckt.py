@@ -3,11 +3,13 @@
 from __future__ import print_function, division
 (T,F)=(True,False)
 
-sw=0 #0: ham_r, 1: .input, 2:_hr.dat
+sw=2 #0: ham_r, 1: .input, 2:_hr.dat
 name='LaOBiS2'
-brav='P' #set bravais lattice Initial
+brav='F' #set bravais lattice Initial
 so=T #switch g-vector (off diagonal part of so hamiltonian)
-eps=1.0e-6
+eps=3.0e-6
+upl=[0,1,2,3,4,5]
+dnl=[6,7,8,9,10,11]
 
 import numpy as np
 def read_ham(sw,name):
@@ -77,23 +79,22 @@ def check_SRS(ham_r,rvec): #proper only single site
     count=check_ham(ham_r,rvec,f)
     print('SRS'+('' if(count==0)else ' breaking\n%d'%count))
 
-def check_TRS(ham_r,rvec):
+def check_TRS(ham_r,rvec,upl,dnl):
     sw_f=False
     if(so):
         '''
         K=(Huu+Hdd)/2,gx=(Hud+Hdu)/2,gy=i(Hud-Hdu)/2,gz=(Huu-Hdd)/2
         if Hamiltonian has TRS K(r)=K*(r) and g_i(r)=-g*_i(r) (i=x,y,z)
         '''
-        no=int(len(ham_r[0])/2)
         f=lambda a,b:abs(a-b.conjugate())
-        hm=(ham_r[:,:no,:no]+ham_r[:,no:2*no,no:2*no])*0.5  #K
+        hm=(ham_r[:,:,upl][:,upl,:]+ham_r[:,:,dnl][:,dnl,:])*0.5  #K
         count=check_ham(hm,rvec,f,sw_f) #ck K(r)=K*(r)
         f=lambda a,b:abs(a+b.conjugate())
-        hm=(ham_r[:,:no,no:2*no]+ham_r[:,no:2*no,:no])*0.5  #gx
+        hm=(ham_r[:,:,upl][:,dnl,:]+ham_r[:,:,dnl][:,upl,:])*0.5  #gx
         count=count+check_ham(hm,rvec,f,sw_f) #ck gx(r)=-gx*(r)
-        hm=(ham_r[:,:no,no:2*no]-ham_r[:,no:2*no,:no])*0.5j #gy
+        hm=(ham_r[:,:,upl][:,dnl,:]-ham_r[:,:,dnl][:,upl,:])*0.5j #gy
         count=count+check_ham(hm,rvec,f,sw_f) #ck gy(r)=-gy*(r)
-        hm=(ham_r[:,:no,:no]-ham_r[:,no:2*no,no:2*no])*0.5  #gz
+        hm=(ham_r[:,:,upl][:,upl,:]-ham_r[:,:,dnl][:,dnl,:])*0.5  #gz
         count=count+check_ham(hm,rvec,f,sw_f) #ck gz(r)=-gz*(r)
     else:
         #f=lambda a,b:abs(a-b.T)
@@ -144,15 +145,14 @@ def print_ham_r(hm,flag):
         print('')
     print('')
 
-def print_gvec(hm,f,no0):
+def print_gvec(hm):
     print('   ',end='')
-    for i in range(no0):
+    for i in range(len(hm)):
         print('    %2d      '%(i+1),end='')
     print('')
-    for i in range(no0):
+    for i,h in enumerate(hm):
         print('%2d '%(i+1),end='')
-        for j in range(no0):
-            hmm=f(hm,i,j)
+        for j,hmm in enumerate(h):
             if abs(hmm.imag)<1.e-6:
                 print(' %9.2e, '%round(hmm.real,5),end='')
             elif abs(hmm.real)<1.e-6:
@@ -167,7 +167,7 @@ def main():
     rflag=check_imag(ham_r,rvec)
     check_hermite(ham_r,rvec)
     check_SRS(ham_r,rvec)
-    check_TRS(ham_r,rvec)
+    check_TRS(ham_r,rvec,upl,dnl)
     print('nr = %d no = %d'%(nr,no))
     onsite_energy=check_onsite_energy(rvec,ham_r,no)
 
@@ -175,25 +175,25 @@ def main():
 
     #check_r=[[1.,0.,0.],[-1.,0.,0.]]
     #check_r=[[1.,0.,0.],[0.,1.,0.],[0.,0.,0.]]
-    check_r=[[3.,2.,0.],[3.,1.,0.]]
+    check_r=[[0.,0.,0.],[1.,0.,0.]]
     for r in check_r:
         hm=find_ham_r(rvec,ham_r,r)
         if so:
-            b0=lambda a,x,y:(a[x][y]+a[x+int(no*0.5)][y+int(no*0.5)])*0.5
+            hmm=(hm[upl,:][:,upl]+hm[dnl,:][:,dnl])*0.5
             print('kinetic term')
-            print_gvec(hm,b0,int(no*0.5)) #ek
+            print_gvec(hmm) #ek
 
-            b0=lambda a,x,y:(a[x][y+int(no*0.5)]+a[x+int(no*0.5)][y])*0.5
+            hmm=(hm[upl,:][:,dnl]+hm[dnl,:][:,upl])*0.5
             print('gx')
-            print_gvec(hm,b0,int(no*0.5)) #gx
+            print_gvec(hmm) #gx
 
-            b0=lambda a,x,y:(a[x][y+int(no*0.5)]-a[x+int(no*0.5)][y])*0.5j
+            hmm=(hm[upl,:][:,dnl]-hm[dnl,:][:,upl])*0.5j
             print('gy')
-            print_gvec(hm,b0,int(no*0.5)) #gy
+            print_gvec(hmm) #gy
 
-            b0=lambda a,x,y:(a[x][y]-a[x+int(no*0.5)][y+int(no*0.5)])*0.5
+            hmm=(hm[upl,:][:,upl]-hm[dnl,:][:,dnl])*0.5
             print('gz')
-            print_gvec(hm,b0,int(no*0.5)) #gz
+            print_gvec(hmm) #gz
         else:
             print_ham_r(hm,rflag)
 
